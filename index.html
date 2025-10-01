@@ -5,212 +5,311 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MiniLMS 2025</title>
 <style>
-body{margin:0;font-family:Arial,sans-serif;background:#f0f2f5;}
+body{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#333;}
 .container{max-width:1000px;margin:auto;padding:20px;}
-.card{background:white;padding:20px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1);margin:20px 0;}
-h1,h2,h3{margin:10px 0;color:#333;}
-input,textarea,select,button{display:block;width:100%;margin:10px 0;padding:10px;border-radius:5px;border:1px solid #ccc;}
-button{background:#007bff;color:white;border:none;cursor:pointer;}
+.card{background:white;padding:25px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.1);margin:20px 0;}
+h1,h2,h3{margin:10px 0;color:#222;}
+input,textarea,select,button{display:block;width:100%;margin:10px 0;padding:10px;border-radius:6px;border:1px solid #ccc;font-size:1em;}
+button{background:#007bff;color:white;border:none;cursor:pointer;transition:0.2s;}
 button:hover{background:#0056b3;}
-#dashboard{margin-top:20px;}
 textarea{resize:none;}
+label{margin-right:10px;}
+section{margin-top:20px;}
+.hidden{display:none;}
+.option-label{display:block;margin:5px 0;}
 </style>
 </head>
 <body>
 <div class="container">
+  <!-- LOGIN -->
   <div id="login" class="card">
     <h1>Login / Signup</h1>
     <input id="email" placeholder="Email">
     <input id="password" type="password" placeholder="Password">
-    <button id="signupBtn">Sign Up</button>
-    <button id="loginBtn">Login</button>
-    <button id="googleBtn">Login with Google</button>
+    <button onclick="signup()">Sign Up</button>
+    <button onclick="login()">Login</button>
+    <button onclick="loginGoogle()">Login with Google</button>
   </div>
 
-  <div id="roleSelect" class="card" style="display:none;">
+  <!-- ROLE SELECT -->
+  <div id="roleSelect" class="card hidden">
     <h2>Select Role</h2>
-    <label><input type="radio" name="role" value="teacher"/> Teacher</label>
-    <label><input type="radio" name="role" value="student"/> Student</label>
-    <button id="chooseRoleBtn">Continue</button>
+    <label><input type="radio" name="role" value="teacher"> Teacher</label>
+    <label><input type="radio" name="role" value="student"> Student</label>
+    <button onclick="chooseRole()">Continue</button>
   </div>
 
-  <div id="dashboard" class="card" style="display:none;">
-    <button id="logoutBtn">Logout</button>
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="card hidden">
+    <button onclick="logout()">Logout</button>
 
-    <div id="teacherUI" style="display:none;">
+    <!-- TEACHER -->
+    <div id="teacherUI" class="hidden">
       <h2>Teacher Dashboard</h2>
-      <input id="className" placeholder="New Class Name">
-      <button id="createClassBtn">Create Class</button>
-      <h3>Post Assignment</h3>
-      <select id="teacherClasses"></select>
-      <input id="assignmentTitle" placeholder="Assignment Title">
-      <textarea id="assignmentDesc" placeholder="Assignment Description"></textarea>
-      <button id="postAssignmentBtn">Post Assignment</button>
+
+      <section>
+        <h3>Create Class</h3>
+        <input id="className" placeholder="New Class Name">
+        <button onclick="createClass()">Create Class</button>
+      </section>
+
+      <section>
+        <h3>Post Assignment</h3>
+        <select id="teacherClasses"></select>
+        <input id="assignmentTitle" placeholder="Assignment Title">
+        <textarea id="assignmentDesc" placeholder="Assignment Description"></textarea>
+        <button onclick="postAssignment()">Post Assignment</button>
+      </section>
+
+      <section>
+        <h3>Create Quiz</h3>
+        <select id="quizClassSelect"></select>
+        <input id="quizTitle" placeholder="Quiz Title">
+        <textarea id="quizQuestion" placeholder="Question Text"></textarea>
+        <input id="quizOptionA" placeholder="Option A">
+        <input id="quizOptionB" placeholder="Option B">
+        <input id="quizOptionC" placeholder="Option C">
+        <input id="quizOptionD" placeholder="Option D">
+        <select id="quizAnswer">
+          <option value="A">A</option>
+          <option value="B">B</option>
+          <option value="C">C</option>
+          <option value="D">D</option>
+        </select>
+        <button onclick="postQuiz()">Post Quiz</button>
+      </section>
     </div>
 
-    <div id="studentUI" style="display:none;">
+    <!-- STUDENT -->
+    <div id="studentUI" class="hidden">
       <h2>Student Dashboard</h2>
-      <input id="classCode" placeholder="Class Name to Join">
-      <button id="joinClassBtn">Join Class</button>
-      <h3>Submit Response</h3>
-      <select id="studentAssignments"></select>
-      <textarea id="responseText" placeholder="Write your response"></textarea>
-      <button id="submitResponseBtn">Submit Response</button>
+
+      <section>
+        <h3>Join Class</h3>
+        <input id="classCode" placeholder="Enter Class Name">
+        <button onclick="joinClass()">Join Class</button>
+      </section>
+
+      <section>
+        <h3>Submit Assignment</h3>
+        <select id="studentAssignments"></select>
+        <textarea id="responseText" placeholder="Write your response"></textarea>
+        <button onclick="submitResponse()">Submit Response</button>
+      </section>
+
+      <section>
+        <h3>Take Quiz</h3>
+        <select id="studentQuizzes"></select>
+        <div id="quizQuestions"></div>
+        <button onclick="submitQuiz()">Submit Quiz</button>
+      </section>
     </div>
   </div>
 </div>
 
 <script type="module">
-document.addEventListener("DOMContentLoaded", async () => {
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getAuth, GoogleAuthProvider, signInWithPopup,
-           createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc, addDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, addDoc, setDoc, doc, getDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyB5tqqvR7UnCEYvSf0PxwcL26aHhin8pw0",
-    authDomain: "minilms2025.firebaseapp.com",
-    projectId: "minilms2025",
-    storageBucket: "minilms2025.appspot.com",
-    messagingSenderId: "413157449165",
-    appId: "1:413157449165:web:placeholderappidhere"
-  };
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyB5tqqvR7UnCEYvSf0PxwcL26aHhin8pw0",
+  authDomain: "minilms2025.firebaseapp.com",
+  projectId: "minilms2025",
+  storageBucket: "minilms2025.appspot.com",
+  messagingSenderId: "413157449165",
+  appId: "1:413157449165:web:placeholderappidhere"
+};
 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-  let currentUser = null;
-  let currentRole = null;
+let currentUser = null;
+let currentRole = null;
+let studentQuizData = {};
 
-  const loginDiv = document.getElementById("login");
-  const roleDiv = document.getElementById("roleSelect");
-  const dashboardDiv = document.getElementById("dashboard");
-  const teacherUI = document.getElementById("teacherUI");
-  const studentUI = document.getElementById("studentUI");
+function show(elem){elem.classList.remove('hidden');}
+function hide(elem){elem.classList.add('hidden');}
 
-  // Auth state
-  onAuthStateChanged(auth, async user => {
-    if(user){
-      currentUser = user;
-      loginDiv.style.display = "none";
-      const userDoc = await getDoc(doc(db,"users",user.uid));
+// AUTH
+function signup(){ 
+  const email = document.getElementById("email").value;
+  const pass = document.getElementById("password").value;
+  createUserWithEmailAndPassword(auth,email,pass).catch(alert);
+}
+function login(){
+  const email = document.getElementById("email").value;
+  const pass = document.getElementById("password").value;
+  signInWithEmailAndPassword(auth,email,pass).catch(alert);
+}
+function loginGoogle(){
+  const provider = new GoogleAuthProvider();
+  signInWithPopup(auth,provider).catch(alert);
+}
+function logout(){ signOut(auth); window.location.reload(); }
+
+// ROLE
+function chooseRole(){
+  const role = document.querySelector('input[name="role"]:checked')?.value;
+  if(!role){alert("Select a role"); return;}
+  setDoc(doc(db,"users",currentUser.uid),{role}).then(()=>{
+    currentRole = role;
+    hide(document.getElementById("roleSelect"));
+    showDashboard();
+  });
+}
+
+// DASHBOARD
+onAuthStateChanged(auth,user=>{
+  if(user){
+    currentUser=user;
+    hide(document.getElementById("login"));
+    getDoc(doc(db,"users",user.uid)).then(userDoc=>{
       if(userDoc.exists()){
         currentRole = userDoc.data().role;
-        roleDiv.style.display = "none";
         showDashboard();
-      } else {
-        roleDiv.style.display = "block";
-      }
-    } else {
-      loginDiv.style.display = "block";
-      roleDiv.style.display = "none";
-      dashboardDiv.style.display = "none";
-    }
-  });
-
-  document.getElementById("signupBtn").onclick = async ()=>{
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
-    await createUserWithEmailAndPassword(auth,email,password);
-  };
-  document.getElementById("loginBtn").onclick = async ()=>{
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
-    await signInWithEmailAndPassword(auth,email,password);
-  };
-  document.getElementById("googleBtn").onclick = async ()=>{
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth,provider);
-  };
-  document.getElementById("logoutBtn").onclick = async ()=>{
-    await signOut(auth);
-    window.location.reload();
-  };
-
-  document.getElementById("chooseRoleBtn").onclick = async ()=>{
-    const role = document.querySelector('input[name="role"]:checked')?.value;
-    if(!role) return alert("Select a role");
-    await setDoc(doc(db,"users",currentUser.uid),{role});
-    currentRole = role;
-    roleDiv.style.display = "none";
-    showDashboard();
-  };
-
-  function showDashboard(){
-    dashboardDiv.style.display = "block";
-    if(currentRole==="teacher"){
-      teacherUI.style.display = "block";
-      studentUI.style.display = "none";
-      loadTeacherClasses();
-    } else {
-      teacherUI.style.display = "none";
-      studentUI.style.display = "block";
-      loadStudentClasses();
-    }
-  }
-
-  document.getElementById("createClassBtn").onclick = async ()=>{
-    const cname = document.getElementById("className").value;
-    if(!cname) return alert("Enter class name");
-    await addDoc(collection(db,"classes"),{name:cname,teacher:currentUser.uid});
-    alert("Class created!");
-    loadTeacherClasses();
-  };
-
-  document.getElementById("joinClassBtn").onclick = async ()=>{
-    const cname = document.getElementById("classCode").value;
-    const q = query(collection(db,"classes"),where("name","==",cname));
-    const snap = await getDocs(q);
-    if(snap.empty){ alert("Class not found"); return; }
-    await addDoc(collection(db,"enrollments"),{student:currentUser.uid,class:snap.docs[0].id});
-    alert("Joined class!");
-    loadStudentClasses();
-  };
-
-  document.getElementById("postAssignmentBtn").onclick = async ()=>{
-    const title = document.getElementById("assignmentTitle").value;
-    const desc = document.getElementById("assignmentDesc").value;
-    const classId = document.getElementById("teacherClasses").value;
-    if(!title || !classId) return alert("Select class & enter title");
-    await addDoc(collection(db,"assignments"),{classId,title,desc,teacher:currentUser.uid});
-    alert("Assignment posted!");
-  };
-
-  document.getElementById("submitResponseBtn").onclick = async ()=>{
-    const resp = document.getElementById("responseText").value;
-    const assignId = document.getElementById("studentAssignments").value;
-    if(!assignId || !resp) return alert("Select assignment & enter response");
-    await addDoc(collection(db,"responses"),{assignmentId:assignId,student:currentUser.uid,response:resp});
-    alert("Response submitted!");
-  };
-
-  async function loadTeacherClasses(){
-    const sel = document.getElementById("teacherClasses");
-    sel.innerHTML = "";
-    const q = query(collection(db,"classes"),where("teacher","==",currentUser.uid));
-    const snap = await getDocs(q);
-    snap.forEach(docu=>{
-      const d = docu.data();
-      sel.innerHTML += `<option value="${docu.id}">${d.name}</option>`;
+      } else show(document.getElementById("roleSelect"));
     });
+  } else {
+    show(document.getElementById("login"));
+    hide(document.getElementById("roleSelect"));
+    hide(document.getElementById("dashboard"));
   }
-
-  async function loadStudentClasses(){
-    const sel = document.getElementById("studentAssignments");
-    sel.innerHTML = "";
-    const q = query(collection(db,"enrollments"),where("student","==",currentUser.uid));
-    const snap = await getDocs(q);
-    snap.forEach(async docu=>{
-      const d = docu.data();
-      const classDoc = await getDoc(doc(db,"classes",d.class));
-      if(classDoc.exists()){
-        sel.innerHTML += `<option value="${d.class}">${classDoc.data().name}</option>`;
-      }
-    });
-  }
-
 });
+
+function showDashboard(){
+  show(document.getElementById("dashboard"));
+  if(currentRole=="teacher"){
+    show(document.getElementById("teacherUI"));
+    hide(document.getElementById("studentUI"));
+    loadTeacherClasses();
+  } else {
+    hide(document.getElementById("teacherUI"));
+    show(document.getElementById("studentUI"));
+    loadStudentClasses();
+    loadStudentQuizzes();
+  }
+}
+
+// TEACHER FUNCTIONS
+async function createClass(){
+  const cname = document.getElementById("className").value;
+  if(!cname) return alert("Enter class name");
+  await addDoc(collection(db,"classes"),{name:cname,teacher:currentUser.uid});
+  alert("Class created!");
+  loadTeacherClasses();
+}
+
+async function postAssignment(){
+  const title = document.getElementById("assignmentTitle").value;
+  const desc = document.getElementById("assignmentDesc").value;
+  const classId = document.getElementById("teacherClasses").value;
+  if(!title || !classId) return alert("Select class & enter title");
+  await addDoc(collection(db,"assignments"),{title,desc,classId,teacher:currentUser.uid});
+  alert("Assignment posted!");
+}
+
+async function postQuiz(){
+  const classId = document.getElementById("quizClassSelect").value;
+  const title = document.getElementById("quizTitle").value;
+  const question = document.getElementById("quizQuestion").value;
+  const A = document.getElementById("quizOptionA").value;
+  const B = document.getElementById("quizOptionB").value;
+  const C = document.getElementById("quizOptionC").value;
+  const D = document.getElementById("quizOptionD").value;
+  const answer = document.getElementById("quizAnswer").value;
+  if(!classId || !title || !question) return alert("Fill all quiz fields");
+  await addDoc(collection(db,"quizzes"),{classId,title,question,options:{A,B,C,D},answer,teacher:currentUser.uid});
+  alert("Quiz posted!");
+}
+
+async function loadTeacherClasses(){
+  const sel = document.getElementById("teacherClasses");
+  const sel2 = document.getElementById("quizClassSelect");
+  sel.innerHTML=""; sel2.innerHTML="";
+  const q = query(collection(db,"classes"),where("teacher","==",currentUser.uid));
+  const snap = await getDocs(q);
+  snap.forEach(docu=>{
+    const d = docu.data();
+    sel.innerHTML += `<option value="${docu.id}">${d.name}</option>`;
+    sel2.innerHTML += `<option value="${docu.id}">${d.name}</option>`;
+  });
+}
+
+// STUDENT FUNCTIONS
+async function joinClass(){
+  const cname = document.getElementById("classCode").value;
+  const q = query(collection(db,"classes"),where("name","==",cname));
+  const snap = await getDocs(q);
+  if(snap.empty){ alert("Class not found"); return; }
+  await addDoc(collection(db,"enrollments"),{student:currentUser.uid,class:snap.docs[0].id});
+  alert("Joined class!");
+  loadStudentClasses();
+  loadStudentQuizzes();
+}
+
+async function loadStudentClasses(){
+  const sel = document.getElementById("studentAssignments");
+  sel.innerHTML="";
+  const q = query(collection(db,"enrollments"),where("student","==",currentUser.uid));
+  const snap = await getDocs(q);
+  for(const docu of snap.docs){
+    const classDoc = await getDoc(doc(db,"classes",docu.data().class));
+    sel.innerHTML += `<option value="${docu.data().class}">${classDoc.data().name}</option>`;
+  }
+}
+
+async function submitResponse(){
+  const assignId = document.getElementById("studentAssignments").value;
+  const resp = document.getElementById("responseText").value;
+  if(!assignId || !resp) return alert("Select assignment & enter response");
+  await addDoc(collection(db,"responses"),{assignmentId:assignId,student:currentUser.uid,response:resp});
+  alert("Response submitted!");
+}
+
+// QUIZZES
+async function loadStudentQuizzes(){
+  const sel = document.getElementById("studentQuizzes");
+  sel.innerHTML="";
+  studentQuizData={};
+  const qEnroll = query(collection(db,"enrollments"),where("student","==",currentUser.uid));
+  const snapEnroll = await getDocs(qEnroll);
+  for(const e of snapEnroll.docs){
+    const qQuiz = query(collection(db,"quizzes"),where("classId","==",e.data().class));
+    const snapQuiz = await getDocs(qQuiz);
+    snapQuiz.forEach(docu=>{
+      sel.innerHTML += `<option value="${docu.id}">${docu.data().title}</option>`;
+      studentQuizData[docu.id]=docu.data();
+    });
+  }
+  showQuizQuestions();
+}
+
+document.getElementById("studentQuizzes").onchange=showQuizQuestions;
+
+function showQuizQuestions(){
+  const qid = document.getElementById("studentQuizzes").value;
+  const div = document.getElementById("quizQuestions");
+  div.innerHTML="";
+  if(!qid) return;
+  const q = studentQuizData[qid];
+  if(!q) return;
+  div.innerHTML=`<p>${q.question}</p>`;
+  ["A","B","C","D"].forEach(opt=>{
+    div.innerHTML += `<label class="option-label"><input type="radio" name="quizAnswer" value="${opt}"> ${opt}: ${q.options[opt]}</label>`;
+  });
+}
+
+async function submitQuiz(){
+  const qid = document.getElementById("studentQuizzes").value;
+  if(!qid) return alert("Select a quiz");
+  const selected = document.querySelector('input[name="quizAnswer"]:checked')?.value;
+  if(!selected) return alert("Select an answer");
+  await addDoc(collection(db,"quizResponses"),{quizId:qid,student:currentUser.uid,answer:selected});
+  alert("Quiz submitted!");
+}
 </script>
 </body>
 </html>
