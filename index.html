@@ -1,200 +1,230 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MiniLMS 2025</title>
-  <script type="module">
-    // Import Firebase
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, GoogleAuthProvider, signInWithPopup,
-             createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { getFirestore, doc, setDoc, getDoc, addDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiniLMS 2025</title>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup,
+         createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, addDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    // ✅ Your Firebase config
-    const firebaseConfig = {
-      apiKey: "AIzaSyB5tqqvR7UnCEYvSf0PxwcL26aHhin8pw0",
-      authDomain: "minilms2025.firebaseapp.com",
-      projectId: "minilms2025",
-      storageBucket: "minilms2025.appspot.com",
-      messagingSenderId: "413157449165",
-      appId: "1:413157449165:web:demoappid12345" // <- you can leave this placeholder if not shown in console
-    };
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyB5tqqvR7UnCEYvSf0PxwcL26aHhin8pw0",
+  authDomain: "minilms2025.firebaseapp.com",
+  projectId: "minilms2025",
+  storageBucket: "minilms2025.appspot.com",
+  messagingSenderId: "413157449165",
+  appId: "1:413157449165:web:placeholderappidhere"
+};
 
-    // Init Firebase
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const storage = getStorage(app);
+// Init Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-    let currentUser = null;
-    let currentRole = null;
+let currentUser = null;
+let currentRole = null;
 
-    // UI elements
-    const loginDiv = document.getElementById("login");
-    const dashboardDiv = document.getElementById("dashboard");
-    const roleSelectDiv = document.getElementById("roleSelect");
-    const teacherUI = document.getElementById("teacherUI");
-    const studentUI = document.getElementById("studentUI");
+// UI Elements
+const loginDiv = document.getElementById("login");
+const roleDiv = document.getElementById("roleSelect");
+const dashboardDiv = document.getElementById("dashboard");
+const teacherUI = document.getElementById("teacherUI");
+const studentUI = document.getElementById("studentUI");
 
-    // Listen for auth changes
-    auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        currentUser = user;
-        loginDiv.style.display = "none";
-        roleSelectDiv.style.display = "block";
-
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists()) {
-          currentRole = userDoc.data().role;
-          roleSelectDiv.style.display = "none";
-          showDashboard();
-        }
-      } else {
-        currentUser = null;
-        loginDiv.style.display = "block";
-        dashboardDiv.style.display = "none";
-      }
-    });
-
-    // Email signup
-    document.getElementById("signupBtn").onclick = async () => {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-      await createUserWithEmailAndPassword(auth, email, password);
-    };
-
-    // Email login
-    document.getElementById("loginBtn").onclick = async () => {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-      await signInWithEmailAndPassword(auth, email, password);
-    };
-
-    // Google login
-    document.getElementById("googleBtn").onclick = async () => {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    };
-
-    // Logout
-    document.getElementById("logoutBtn").onclick = async () => {
-      await signOut(auth);
-      window.location.reload();
-    };
-
-    // Role select
-    document.getElementById("chooseRoleBtn").onclick = async () => {
-      const role = document.querySelector('input[name="role"]:checked').value;
-      await setDoc(doc(db, "users", currentUser.uid), { role });
-      currentRole = role;
-      roleSelectDiv.style.display = "none";
+// Auth state
+onAuthStateChanged(auth, async user => {
+  if(user){
+    currentUser = user;
+    loginDiv.style.display = "none";
+    // Check if role is set
+    const userDoc = await getDoc(doc(db,"users",user.uid));
+    if(userDoc.exists()){
+      currentRole = userDoc.data().role;
+      roleDiv.style.display = "none";
       showDashboard();
-    };
-
-    function showDashboard() {
-      dashboardDiv.style.display = "block";
-      if (currentRole === "teacher") {
-        teacherUI.style.display = "block";
-        studentUI.style.display = "none";
-      } else {
-        teacherUI.style.display = "none";
-        studentUI.style.display = "block";
-      }
+    } else {
+      roleDiv.style.display = "block";
     }
+  } else {
+    loginDiv.style.display = "block";
+    roleDiv.style.display = "none";
+    dashboardDiv.style.display = "none";
+  }
+});
 
-    // Teacher creates a class
-    document.getElementById("createClassBtn").onclick = async () => {
-      const className = document.getElementById("className").value;
-      await addDoc(collection(db, "classes"), {
-        name: className,
-        teacher: currentUser.uid
-      });
-      alert("Class created!");
-    };
+// Signup / Login
+document.getElementById("signupBtn").onclick = async ()=>{
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  await createUserWithEmailAndPassword(auth,email,password);
+};
+document.getElementById("loginBtn").onclick = async ()=>{
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  await signInWithEmailAndPassword(auth,email,password);
+};
+document.getElementById("googleBtn").onclick = async ()=>{
+  const provider = new GoogleAuthProvider();
+  await signInWithPopup(auth,provider);
+};
 
-    // Student joins a class
-    document.getElementById("joinClassBtn").onclick = async () => {
-      const classCode = document.getElementById("classCode").value;
-      const q = query(collection(db, "classes"), where("name", "==", classCode));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        await addDoc(collection(db, "enrollments"), {
-          student: currentUser.uid,
-          class: snap.docs[0].id
-        });
-        alert("Joined class!");
-      } else {
-        alert("Class not found.");
-      }
-    };
+// Logout
+document.getElementById("logoutBtn").onclick = async ()=>{
+  await signOut(auth);
+  window.location.reload();
+};
 
-    // Teacher uploads assignment
-    document.getElementById("uploadAssignmentBtn").onclick = async () => {
-      const fileInput = document.getElementById("assignmentFile");
-      const file = fileInput.files[0];
-      if (!file) { alert("No file chosen"); return; }
-      const storageRef = ref(storage, "assignments/" + file.name);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
+// Role select
+document.getElementById("chooseRoleBtn").onclick = async ()=>{
+  const role = document.querySelector('input[name="role"]:checked').value;
+  await setDoc(doc(db,"users",currentUser.uid),{role});
+  currentRole = role;
+  roleDiv.style.display = "none";
+  showDashboard();
+};
 
-      await addDoc(collection(db, "assignments"), {
-        teacher: currentUser.uid,
-        file: url,
-        name: file.name
-      });
-      alert("Assignment uploaded!");
-    };
+// Show Dashboard
+function showDashboard(){
+  dashboardDiv.style.display = "block";
+  if(currentRole==="teacher"){
+    teacherUI.style.display = "block";
+    studentUI.style.display = "none";
+    loadTeacherClasses();
+  } else {
+    teacherUI.style.display = "none";
+    studentUI.style.display = "block";
+    loadStudentClasses();
+  }
+}
 
-    // Student submits response
-    document.getElementById("submitResponseBtn").onclick = async () => {
-      const text = document.getElementById("responseText").value;
-      await addDoc(collection(db, "responses"), {
-        student: currentUser.uid,
-        response: text
-      });
-      alert("Response submitted!");
-    };
-  </script>
+// Teacher create class
+document.getElementById("createClassBtn").onclick = async ()=>{
+  const cname = document.getElementById("className").value;
+  if(!cname) return alert("Enter class name");
+  await addDoc(collection(db,"classes"),{name:cname,teacher:currentUser.uid});
+  alert("Class created!");
+  loadTeacherClasses();
+};
+
+// Student join class
+document.getElementById("joinClassBtn").onclick = async ()=>{
+  const cname = document.getElementById("classCode").value;
+  const q = query(collection(db,"classes"),where("name","==",cname));
+  const snap = await getDocs(q);
+  if(snap.empty){ alert("Class not found"); return; }
+  await addDoc(collection(db,"enrollments"),{student:currentUser.uid,class:snap.docs[0].id});
+  alert("Joined class!");
+  loadStudentClasses();
+};
+
+// Teacher assignment submit (text only)
+document.getElementById("postAssignmentBtn").onclick = async ()=>{
+  const title = document.getElementById("assignmentTitle").value;
+  const desc = document.getElementById("assignmentDesc").value;
+  const classId = document.getElementById("teacherClasses").value;
+  if(!title || !classId) return alert("Select class & enter title");
+  await addDoc(collection(db,"assignments"),{classId,title,desc,teacher:currentUser.uid});
+  alert("Assignment posted!");
+  loadTeacherAssignments();
+};
+
+// Student response submit
+document.getElementById("submitResponseBtn").onclick = async ()=>{
+  const resp = document.getElementById("responseText").value;
+  const assignId = document.getElementById("studentAssignments").value;
+  if(!assignId || !resp) return alert("Select assignment & enter response");
+  await addDoc(collection(db,"responses"),{assignmentId:assignId,student:currentUser.uid,response:resp});
+  alert("Response submitted!");
+};
+
+// Load teacher classes into dropdown
+async function loadTeacherClasses(){
+  const sel = document.getElementById("teacherClasses");
+  sel.innerHTML = "";
+  const q = query(collection(db,"classes"),where("teacher","==",currentUser.uid));
+  const snap = await getDocs(q);
+  snap.forEach(docu=>{
+    const d = docu.data();
+    sel.innerHTML += `<option value="${docu.id}">${d.name}</option>`;
+  });
+}
+
+// Load teacher assignments into list
+async function loadTeacherAssignments(){
+  // Could extend here to show assignment list
+}
+
+// Load student classes
+async function loadStudentClasses(){
+  const sel = document.getElementById("studentAssignments");
+  sel.innerHTML = "";
+  const q = query(collection(db,"enrollments"),where("student","==",currentUser.uid));
+  const snap = await getDocs(q);
+  snap.forEach(async docu=>{
+    const d = docu.data();
+    const classDoc = await getDoc(doc(db,"classes",d.class));
+    sel.innerHTML += `<option value="${d.class}">${classDoc.data().name}</option>`;
+  });
+}
+</script>
+<style>
+body{margin:0;font-family:Arial,sans-serif;background:#f0f2f5;}
+.container{max-width:1000px;margin:auto;padding:20px;}
+.card{background:white;padding:20px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1);margin:20px 0;}
+h1,h2,h3{margin:10px 0;color:#333;}
+input,textarea,select,button{display:block;width:100%;margin:10px 0;padding:10px;border-radius:5px;border:1px solid #ccc;}
+button{background:#007bff;color:white;border:none;cursor:pointer;}
+button:hover{background:#0056b3;}
+#dashboard{margin-top:20px;}
+textarea{resize:none;}
+</style>
 </head>
 <body>
-  <div id="login">
-    <h2>Login / Signup</h2>
-    <input id="email" placeholder="Email" />
-    <input id="password" type="password" placeholder="Password" />
-    <button id="signupBtn">Signup</button>
+<div class="container">
+  <div id="login" class="card">
+    <h1>Login / Signup</h1>
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Password">
+    <button id="signupBtn">Sign Up</button>
     <button id="loginBtn">Login</button>
     <button id="googleBtn">Login with Google</button>
   </div>
 
-  <div id="roleSelect" style="display:none;">
+  <div id="roleSelect" class="card" style="display:none;">
     <h2>Select Role</h2>
     <label><input type="radio" name="role" value="teacher"/> Teacher</label>
     <label><input type="radio" name="role" value="student"/> Student</label>
     <button id="chooseRoleBtn">Continue</button>
   </div>
 
-  <div id="dashboard" style="display:none;">
+  <div id="dashboard" class="card" style="display:none;">
     <button id="logoutBtn">Logout</button>
 
     <div id="teacherUI" style="display:none;">
       <h2>Teacher Dashboard</h2>
-      <input id="className" placeholder="New Class Name"/>
+      <input id="className" placeholder="New Class Name">
       <button id="createClassBtn">Create Class</button>
-      <br/><br/>
-      <input id="assignmentFile" type="file"/>
-      <button id="uploadAssignmentBtn">Upload Assignment</button>
+      <h3>Post Assignment</h3>
+      <select id="teacherClasses"></select>
+      <input id="assignmentTitle" placeholder="Assignment Title">
+      <textarea id="assignmentDesc" placeholder="Assignment Description"></textarea>
+      <button id="postAssignmentBtn">Post Assignment</button>
     </div>
 
     <div id="studentUI" style="display:none;">
       <h2>Student Dashboard</h2>
-      <input id="classCode" placeholder="Class Name"/>
+      <input id="classCode" placeholder="Class Name to Join">
       <button id="joinClassBtn">Join Class</button>
-      <br/><br/>
+      <h3>Submit Response</h3>
+      <select id="studentAssignments"></select>
       <textarea id="responseText" placeholder="Write your response"></textarea>
       <button id="submitResponseBtn">Submit Response</button>
     </div>
   </div>
+</div>
 </body>
 </html>
