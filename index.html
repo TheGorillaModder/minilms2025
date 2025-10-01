@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MiniLMS 2025</title>
+<!-- Firebase CDN -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"></script>
 <style>
 body{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#333;}
 .container{max-width:1000px;margin:auto;padding:20px;}
@@ -99,7 +103,7 @@ section{margin-top:20px;}
 
       <section>
         <h3>Take Quiz</h3>
-        <select id="studentQuizzes"></select>
+        <select id="studentQuizzes" onchange="showQuizQuestions()"></select>
         <div id="quizQuestions"></div>
         <button onclick="submitQuiz()">Submit Quiz</button>
       </section>
@@ -107,12 +111,12 @@ section{margin-top:20px;}
   </div>
 </div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, addDoc, setDoc, doc, getDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+<script>
+let currentUser=null;
+let currentRole=null;
+let studentQuizData={};
 
-// Firebase config
+// Firebase Init
 const firebaseConfig = {
   apiKey: "AIzaSyB5tqqvR7UnCEYvSf0PxwcL26aHhin8pw0",
   authDomain: "minilms2025.firebaseapp.com",
@@ -121,58 +125,55 @@ const firebaseConfig = {
   messagingSenderId: "413157449165",
   appId: "1:413157449165:web:placeholderappidhere"
 };
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-let currentUser = null;
-let currentRole = null;
-let studentQuizData = {};
-
-function show(elem){elem.classList.remove('hidden');}
-function hide(elem){elem.classList.add('hidden');}
+// Show / hide helper
+function show(el){el.classList.remove('hidden');}
+function hide(el){el.classList.add('hidden');}
 
 // AUTH
 function signup(){ 
-  const email = document.getElementById("email").value;
-  const pass = document.getElementById("password").value;
-  createUserWithEmailAndPassword(auth,email,pass).catch(alert);
+  const email=document.getElementById("email").value;
+  const pass=document.getElementById("password").value;
+  auth.createUserWithEmailAndPassword(email,pass).catch(alert);
 }
 function login(){
-  const email = document.getElementById("email").value;
-  const pass = document.getElementById("password").value;
-  signInWithEmailAndPassword(auth,email,pass).catch(alert);
+  const email=document.getElementById("email").value;
+  const pass=document.getElementById("password").value;
+  auth.signInWithEmailAndPassword(email,pass).catch(alert);
 }
 function loginGoogle(){
-  const provider = new GoogleAuthProvider();
-  signInWithPopup(auth,provider).catch(alert);
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(alert);
 }
-function logout(){ signOut(auth); window.location.reload(); }
+function logout(){ auth.signOut(); hide(document.getElementById("dashboard")); show(document.getElementById("login")); }
 
 // ROLE
 function chooseRole(){
   const role = document.querySelector('input[name="role"]:checked')?.value;
   if(!role){alert("Select a role"); return;}
-  setDoc(doc(db,"users",currentUser.uid),{role}).then(()=>{
-    currentRole = role;
+  db.collection("users").doc(currentUser.uid).set({role})
+  .then(()=>{
+    currentRole=role;
     hide(document.getElementById("roleSelect"));
     showDashboard();
   });
 }
 
 // DASHBOARD
-onAuthStateChanged(auth,user=>{
+auth.onAuthStateChanged(user=>{
   if(user){
     currentUser=user;
     hide(document.getElementById("login"));
-    getDoc(doc(db,"users",user.uid)).then(userDoc=>{
-      if(userDoc.exists()){
-        currentRole = userDoc.data().role;
+    db.collection("users").doc(user.uid).get().then(docu=>{
+      if(docu.exists){
+        currentRole=docu.data().role;
         showDashboard();
-      } else show(document.getElementById("roleSelect"));
+      }else show(document.getElementById("roleSelect"));
     });
-  } else {
+  }else{
     show(document.getElementById("login"));
     hide(document.getElementById("roleSelect"));
     hide(document.getElementById("dashboard"));
@@ -185,7 +186,7 @@ function showDashboard(){
     show(document.getElementById("teacherUI"));
     hide(document.getElementById("studentUI"));
     loadTeacherClasses();
-  } else {
+  }else{
     hide(document.getElementById("teacherUI"));
     show(document.getElementById("studentUI"));
     loadStudentClasses();
@@ -194,121 +195,104 @@ function showDashboard(){
 }
 
 // TEACHER FUNCTIONS
-async function createClass(){
-  const cname = document.getElementById("className").value;
-  if(!cname) return alert("Enter class name");
-  await addDoc(collection(db,"classes"),{name:cname,teacher:currentUser.uid});
-  alert("Class created!");
-  loadTeacherClasses();
+function createClass(){
+  const cname=document.getElementById("className").value;
+  if(!cname)return alert("Enter class name");
+  db.collection("classes").add({name:cname,teacher:currentUser.uid}).then(()=>{alert("Class created!"); loadTeacherClasses();});
 }
-
-async function postAssignment(){
-  const title = document.getElementById("assignmentTitle").value;
-  const desc = document.getElementById("assignmentDesc").value;
-  const classId = document.getElementById("teacherClasses").value;
+function postAssignment(){
+  const title=document.getElementById("assignmentTitle").value;
+  const desc=document.getElementById("assignmentDesc").value;
+  const classId=document.getElementById("teacherClasses").value;
   if(!title || !classId) return alert("Select class & enter title");
-  await addDoc(collection(db,"assignments"),{title,desc,classId,teacher:currentUser.uid});
-  alert("Assignment posted!");
+  db.collection("assignments").add({title,desc,classId,teacher:currentUser.uid}).then(()=>alert("Assignment posted!"));
 }
-
-async function postQuiz(){
-  const classId = document.getElementById("quizClassSelect").value;
-  const title = document.getElementById("quizTitle").value;
-  const question = document.getElementById("quizQuestion").value;
-  const A = document.getElementById("quizOptionA").value;
-  const B = document.getElementById("quizOptionB").value;
-  const C = document.getElementById("quizOptionC").value;
-  const D = document.getElementById("quizOptionD").value;
-  const answer = document.getElementById("quizAnswer").value;
+function postQuiz(){
+  const classId=document.getElementById("quizClassSelect").value;
+  const title=document.getElementById("quizTitle").value;
+  const question=document.getElementById("quizQuestion").value;
+  const A=document.getElementById("quizOptionA").value;
+  const B=document.getElementById("quizOptionB").value;
+  const C=document.getElementById("quizOptionC").value;
+  const D=document.getElementById("quizOptionD").value;
+  const answer=document.getElementById("quizAnswer").value;
   if(!classId || !title || !question) return alert("Fill all quiz fields");
-  await addDoc(collection(db,"quizzes"),{classId,title,question,options:{A,B,C,D},answer,teacher:currentUser.uid});
-  alert("Quiz posted!");
+  db.collection("quizzes").add({classId,title,question,options:{A,B,C,D},answer,teacher:currentUser.uid}).then(()=>alert("Quiz posted!"));
 }
-
-async function loadTeacherClasses(){
-  const sel = document.getElementById("teacherClasses");
-  const sel2 = document.getElementById("quizClassSelect");
+function loadTeacherClasses(){
+  const sel=document.getElementById("teacherClasses");
+  const sel2=document.getElementById("quizClassSelect");
   sel.innerHTML=""; sel2.innerHTML="";
-  const q = query(collection(db,"classes"),where("teacher","==",currentUser.uid));
-  const snap = await getDocs(q);
-  snap.forEach(docu=>{
-    const d = docu.data();
-    sel.innerHTML += `<option value="${docu.id}">${d.name}</option>`;
-    sel2.innerHTML += `<option value="${docu.id}">${d.name}</option>`;
+  db.collection("classes").where("teacher","==",currentUser.uid).get().then(snap=>{
+    snap.forEach(docu=>{
+      const d=docu.data();
+      sel.innerHTML+=`<option value="${docu.id}">${d.name}</option>`;
+      sel2.innerHTML+=`<option value="${docu.id}">${d.name}</option>`;
+    });
   });
 }
 
 // STUDENT FUNCTIONS
-async function joinClass(){
-  const cname = document.getElementById("classCode").value;
-  const q = query(collection(db,"classes"),where("name","==",cname));
-  const snap = await getDocs(q);
-  if(snap.empty){ alert("Class not found"); return; }
-  await addDoc(collection(db,"enrollments"),{student:currentUser.uid,class:snap.docs[0].id});
-  alert("Joined class!");
-  loadStudentClasses();
-  loadStudentQuizzes();
+function joinClass(){
+  const cname=document.getElementById("classCode").value;
+  db.collection("classes").where("name","==",cname).get().then(snap=>{
+    if(snap.empty){alert("Class not found"); return;}
+    db.collection("enrollments").add({student:currentUser.uid,class:snap.docs[0].id}).then(()=>{alert("Joined class!"); loadStudentClasses(); loadStudentQuizzes();});
+  });
 }
-
-async function loadStudentClasses(){
-  const sel = document.getElementById("studentAssignments");
+function loadStudentClasses(){
+  const sel=document.getElementById("studentAssignments");
   sel.innerHTML="";
-  const q = query(collection(db,"enrollments"),where("student","==",currentUser.uid));
-  const snap = await getDocs(q);
-  for(const docu of snap.docs){
-    const classDoc = await getDoc(doc(db,"classes",docu.data().class));
-    sel.innerHTML += `<option value="${docu.data().class}">${classDoc.data().name}</option>`;
-  }
+  db.collection("enrollments").where("student","==",currentUser.uid).get().then(snap=>{
+    snap.forEach(async e=>{
+      const c = await db.collection("classes").doc(e.data().class).get();
+      sel.innerHTML+=`<option value="${e.data().class}">${c.data().name}</option>`;
+    });
+  });
 }
-
-async function submitResponse(){
-  const assignId = document.getElementById("studentAssignments").value;
-  const resp = document.getElementById("responseText").value;
+function submitResponse(){
+  const assignId=document.getElementById("studentAssignments").value;
+  const resp=document.getElementById("responseText").value;
   if(!assignId || !resp) return alert("Select assignment & enter response");
-  await addDoc(collection(db,"responses"),{assignmentId:assignId,student:currentUser.uid,response:resp});
-  alert("Response submitted!");
+  db.collection("responses").add({assignmentId:assignId,student:currentUser.uid,response:resp}).then(()=>alert("Response submitted!"));
 }
 
 // QUIZZES
-async function loadStudentQuizzes(){
-  const sel = document.getElementById("studentQuizzes");
+function loadStudentQuizzes(){
+  const sel=document.getElementById("studentQuizzes");
   sel.innerHTML="";
   studentQuizData={};
-  const qEnroll = query(collection(db,"enrollments"),where("student","==",currentUser.uid));
-  const snapEnroll = await getDocs(qEnroll);
-  for(const e of snapEnroll.docs){
-    const qQuiz = query(collection(db,"quizzes"),where("classId","==",e.data().class));
-    const snapQuiz = await getDocs(qQuiz);
-    snapQuiz.forEach(docu=>{
-      sel.innerHTML += `<option value="${docu.id}">${docu.data().title}</option>`;
-      studentQuizData[docu.id]=docu.data();
-    });
-  }
-  showQuizQuestions();
-}
-
-document.getElementById("studentQuizzes").onchange=showQuizQuestions;
-
-function showQuizQuestions(){
-  const qid = document.getElementById("studentQuizzes").value;
-  const div = document.getElementById("quizQuestions");
-  div.innerHTML="";
-  if(!qid) return;
-  const q = studentQuizData[qid];
-  if(!q) return;
-  div.innerHTML=`<p>${q.question}</p>`;
-  ["A","B","C","D"].forEach(opt=>{
-    div.innerHTML += `<label class="option-label"><input type="radio" name="quizAnswer" value="${opt}"> ${opt}: ${q.options[opt]}</label>`;
+  db.collection("enrollments").where("student","==",currentUser.uid).get().then(async snapEnroll=>{
+    for(const e of snapEnroll.docs){
+      const snapQuiz=await db.collection("quizzes").where("classId","==",e.data().class).get();
+      snapQuiz.forEach(docu=>{
+        sel.innerHTML+=`<option value="${docu.id}">${docu.data().title}</option>`;
+        studentQuizData[docu.id]=docu.data();
+      });
+    }
+    showQuizQuestions();
   });
 }
 
-async function submitQuiz(){
-  const qid = document.getElementById("studentQuizzes").value;
+function showQuizQuestions(){
+  const qid=document.getElementById("studentQuizzes").value;
+  const div=document.getElementById("quizQuestions");
+  div.innerHTML="";
+  if(!qid) return;
+  const q=studentQuizData[qid];
+  if(!q) return;
+  div.innerHTML=`<p>${q.question}</p>`;
+  ["A","B","C","D"].forEach(opt=>{
+    div.innerHTML+=`<label class="option-label"><input type="radio" name="quizAnswer" value="${opt}"> ${opt}: ${q.options[opt]}</label>`;
+  });
+}
+
+function submitQuiz(){
+  const qid=document.getElementById("studentQuizzes").value;
   if(!qid) return alert("Select a quiz");
-  const selected = document.querySelector('input[name="quizAnswer"]:checked')?.value;
+  const selected=document.querySelector('input[name="quizAnswer"]:checked')?.value;
   if(!selected) return alert("Select an answer");
-  await addDoc(collection(db,"quizResponses"),{quizId:qid,student:currentUser.uid,answer:selected});
-  alert("Quiz submitted!");
+  db.collection("quizResponses").add({quizId:qid,student:currentUser.uid,answer:selected}).then(()=>alert("Quiz submitted!"));
 }
 </script>
 </body>
