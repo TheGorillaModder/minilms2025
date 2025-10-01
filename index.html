@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MiniLMS 2025</title>
-<!-- Firebase CDN -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"></script>
@@ -116,20 +115,20 @@ let currentUser=null;
 let currentRole=null;
 let studentQuizData={};
 
-// Firebase Init
+// Firebase config - EXACTLY as you provided
 const firebaseConfig = {
   apiKey: "AIzaSyB5tqqvR7UnCEYvSf0PxwcL26aHhin8pw0",
   authDomain: "minilms2025.firebaseapp.com",
   projectId: "minilms2025",
   storageBucket: "minilms2025.appspot.com",
   messagingSenderId: "413157449165",
-  appId: "1:413157449165:web:placeholderappidhere"
+  appId: "1:413157449165:web:413157449165"
 };
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// Show / hide helper
+// Helper
 function show(el){el.classList.remove('hidden');}
 function hide(el){el.classList.add('hidden');}
 
@@ -148,7 +147,14 @@ function loginGoogle(){
   const provider = new firebase.auth.GoogleAuthProvider();
   auth.signInWithPopup(provider).catch(alert);
 }
-function logout(){ auth.signOut(); hide(document.getElementById("dashboard")); show(document.getElementById("login")); }
+function logout(){ 
+  auth.signOut();
+  hide(document.getElementById("dashboard"));
+  hide(document.getElementById("roleSelect"));
+  hide(document.getElementById("teacherUI"));
+  hide(document.getElementById("studentUI"));
+  show(document.getElementById("login"));
+}
 
 // ROLE
 function chooseRole(){
@@ -171,7 +177,9 @@ auth.onAuthStateChanged(user=>{
       if(docu.exists){
         currentRole=docu.data().role;
         showDashboard();
-      }else show(document.getElementById("roleSelect"));
+      }else{
+        show(document.getElementById("roleSelect"));
+      }
     });
   }else{
     show(document.getElementById("login"));
