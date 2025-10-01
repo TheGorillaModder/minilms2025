@@ -1,209 +1,200 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>MiniLMS 2025</title>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f9; }
-    #app { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; }
-    button { margin: 5px; padding: 8px 12px; }
-    .hidden { display: none; }
-    .card { border: 1px solid #ccc; padding: 12px; margin: 10px 0; border-radius: 6px; }
-  </style>
-</head>
-<body>
-<div id="app">
-  <h1>MiniLMS 2025</h1>
-  
-  <!-- Auth -->
-  <div id="auth-section">
-    <input id="email" placeholder="Email"><br>
-    <input id="password" type="password" placeholder="Password"><br>
-    <button onclick="signup()">Sign Up</button>
-    <button onclick="login()">Login</button>
-  </div>
+  <script type="module">
+    // Import Firebase
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup,
+             createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, addDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
-  <div id="user-section" class="hidden">
-    <p>Logged in as: <span id="user-email"></span></p>
-    <button onclick="logout()">Logout</button>
-    
-    <h3>Classrooms</h3>
-    <input id="className" placeholder="New class name">
-    <button onclick="createClass()">Create Class</button><br>
-    <input id="joinCode" placeholder="Join code">
-    <button onclick="joinClass()">Join Class</button>
+    // ✅ Your Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyB5tqqvR7UnCEYvSf0PxwcL26aHhin8pw0",
+      authDomain: "minilms2025.firebaseapp.com",
+      projectId: "minilms2025",
+      storageBucket: "minilms2025.appspot.com",
+      messagingSenderId: "413157449165",
+      appId: "1:413157449165:web:demoappid12345" // <- you can leave this placeholder if not shown in console
+    };
 
-    <div id="class-list"></div>
-  </div>
+    // Init Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
 
-  <div id="classroom-section" class="hidden">
-    <h2 id="class-title"></h2>
-    <button onclick="backToClasses()">← Back to Classes</button>
+    let currentUser = null;
+    let currentRole = null;
 
-    <div id="teacher-tools" class="hidden">
-      <h3>Post Assignment</h3>
-      <input id="assignmentTitle" placeholder="Assignment title"><br>
-      <textarea id="assignmentDesc" placeholder="Assignment description"></textarea><br>
-      <input type="file" id="assignmentFile"><br>
-      <button onclick="postAssignment()">Post</button>
-    </div>
+    // UI elements
+    const loginDiv = document.getElementById("login");
+    const dashboardDiv = document.getElementById("dashboard");
+    const roleSelectDiv = document.getElementById("roleSelect");
+    const teacherUI = document.getElementById("teacherUI");
+    const studentUI = document.getElementById("studentUI");
 
-    <h3>Assignments</h3>
-    <div id="assignment-list"></div>
-  </div>
-</div>
+    // Listen for auth changes
+    auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        currentUser = user;
+        loginDiv.style.display = "none";
+        roleSelectDiv.style.display = "block";
 
-<script>
-  // Firebase config
-  const firebaseConfig = {
-    apiKey: "YOUR_FIREBASE_API_KEY",
-    authDomain: "minilms2025.firebaseapp.com",
-    projectId: "minilms2025",
-    storageBucket: "minilms2025.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
-  };
-
-  // Init
-  const app = firebase.initializeApp(firebaseConfig);
-  const auth = firebase.getAuth(app);
-  const db = firebase.getFirestore(app);
-  const storage = firebase.getStorage(app);
-
-  let currentUser = null;
-  let currentClassId = null;
-  let currentRole = "student";
-
-  // Auth
-  async function signup() {
-    const email = document.getElementById("email").value;
-    const pass = document.getElementById("password").value;
-    await firebase.createUserWithEmailAndPassword(auth, email, pass);
-  }
-
-  async function login() {
-    const email = document.getElementById("email").value;
-    const pass = document.getElementById("password").value;
-    await firebase.signInWithEmailAndPassword(auth, email, pass);
-  }
-
-  async function logout() {
-    await firebase.signOut(auth);
-  }
-
-  firebase.onAuthStateChanged(auth, (user) => {
-    if (user) {
-      currentUser = user;
-      document.getElementById("auth-section").classList.add("hidden");
-      document.getElementById("user-section").classList.remove("hidden");
-      document.getElementById("user-email").innerText = user.email;
-      loadClasses();
-    } else {
-      currentUser = null;
-      document.getElementById("auth-section").classList.remove("hidden");
-      document.getElementById("user-section").classList.add("hidden");
-      document.getElementById("classroom-section").classList.add("hidden");
-    }
-  });
-
-  // Classes
-  async function createClass() {
-    const name = document.getElementById("className").value;
-    if (!name) return;
-    const code = Math.random().toString(36).substring(2,8);
-    await firebase.addDoc(firebase.collection(db, "classes"), {
-      name, code, teacher: currentUser.uid
-    });
-    alert("Class created! Code: " + code);
-    loadClasses();
-  }
-
-  async function joinClass() {
-    const code = document.getElementById("joinCode").value;
-    const q = firebase.query(firebase.collection(db, "classes"), firebase.where("code", "==", code));
-    const snap = await firebase.getDocs(q);
-    if (snap.empty) { alert("Invalid code"); return; }
-    const classId = snap.docs[0].id;
-    await firebase.setDoc(firebase.doc(db, "classes", classId, "students", currentUser.uid), { uid: currentUser.uid });
-    loadClasses();
-  }
-
-  async function loadClasses() {
-    const list = document.getElementById("class-list");
-    list.innerHTML = "";
-    const q1 = firebase.query(firebase.collection(db, "classes"), firebase.where("teacher", "==", currentUser.uid));
-    const teacherClasses = await firebase.getDocs(q1);
-    teacherClasses.forEach(doc => {
-      const d = doc.data();
-      list.innerHTML += `<div class="card"><b>${d.name}</b> (Code: ${d.code}) <button onclick="openClass('${doc.id}','teacher')">Open</button></div>`;
-    });
-
-    const studentClasses = await firebase.getDocs(firebase.collectionGroup(db, "students"));
-    studentClasses.forEach(ref => {
-      if (ref.id === currentUser.uid) {
-        const classId = ref.ref.parent.parent.id;
-        firebase.getDoc(firebase.doc(db, "classes", classId)).then(dref=>{
-          const d = dref.data();
-          list.innerHTML += `<div class="card"><b>${d.name}</b> <button onclick="openClass('${classId}','student')">Open</button></div>`;
-        });
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          currentRole = userDoc.data().role;
+          roleSelectDiv.style.display = "none";
+          showDashboard();
+        }
+      } else {
+        currentUser = null;
+        loginDiv.style.display = "block";
+        dashboardDiv.style.display = "none";
       }
     });
-  }
 
-  function backToClasses() {
-    document.getElementById("classroom-section").classList.add("hidden");
-    document.getElementById("user-section").classList.remove("hidden");
-  }
+    // Email signup
+    document.getElementById("signupBtn").onclick = async () => {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      await createUserWithEmailAndPassword(auth, email, password);
+    };
 
-  async function openClass(classId, role) {
-    currentClassId = classId;
-    currentRole = role;
-    document.getElementById("user-section").classList.add("hidden");
-    document.getElementById("classroom-section").classList.remove("hidden");
-    document.getElementById("teacher-tools").classList.toggle("hidden", role!=="teacher");
-    const docSnap = await firebase.getDoc(firebase.doc(db, "classes", classId));
-    document.getElementById("class-title").innerText = docSnap.data().name;
-    loadAssignments();
-  }
+    // Email login
+    document.getElementById("loginBtn").onclick = async () => {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      await signInWithEmailAndPassword(auth, email, password);
+    };
 
-  // Assignments
-  async function postAssignment() {
-    const title = document.getElementById("assignmentTitle").value;
-    const desc = document.getElementById("assignmentDesc").value;
-    const file = document.getElementById("assignmentFile").files[0];
-    let fileUrl = "";
-    if (file) {
-      const ref = firebase.ref(storage, `assignments/${currentClassId}/${file.name}`);
-      await firebase.uploadBytes(ref, file);
-      fileUrl = await firebase.getDownloadURL(ref);
+    // Google login
+    document.getElementById("googleBtn").onclick = async () => {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    };
+
+    // Logout
+    document.getElementById("logoutBtn").onclick = async () => {
+      await signOut(auth);
+      window.location.reload();
+    };
+
+    // Role select
+    document.getElementById("chooseRoleBtn").onclick = async () => {
+      const role = document.querySelector('input[name="role"]:checked').value;
+      await setDoc(doc(db, "users", currentUser.uid), { role });
+      currentRole = role;
+      roleSelectDiv.style.display = "none";
+      showDashboard();
+    };
+
+    function showDashboard() {
+      dashboardDiv.style.display = "block";
+      if (currentRole === "teacher") {
+        teacherUI.style.display = "block";
+        studentUI.style.display = "none";
+      } else {
+        teacherUI.style.display = "none";
+        studentUI.style.display = "block";
+      }
     }
-    await firebase.addDoc(firebase.collection(db, "classes", currentClassId, "assignments"), {
-      title, desc, fileUrl, teacher: currentUser.uid, created: Date.now()
-    });
-    loadAssignments();
-  }
 
-  async function loadAssignments() {
-    const list = document.getElementById("assignment-list");
-    list.innerHTML = "";
-    const snap = await firebase.getDocs(firebase.collection(db, "classes", currentClassId, "assignments"));
-    snap.forEach(doc => {
-      const d = doc.data();
-      list.innerHTML += `<div class="card"><b>${d.title}</b><p>${d.desc}</p>${d.fileUrl ? `<a href="${d.fileUrl}" target="_blank">Download File</a>`:""}<br>${currentRole==="student"?`<textarea id="resp-${doc.id}" placeholder="Your response"></textarea><br><button onclick="submitResponse('${doc.id}')">Submit</button>`:""}</div>`;
-    });
-  }
+    // Teacher creates a class
+    document.getElementById("createClassBtn").onclick = async () => {
+      const className = document.getElementById("className").value;
+      await addDoc(collection(db, "classes"), {
+        name: className,
+        teacher: currentUser.uid
+      });
+      alert("Class created!");
+    };
 
-  async function submitResponse(assignmentId) {
-    const text = document.getElementById("resp-"+assignmentId).value;
-    await firebase.addDoc(firebase.collection(db, "classes", currentClassId, "assignments", assignmentId, "responses"), {
-      student: currentUser.uid, text, created: Date.now()
-    });
-    alert("Submitted!");
-  }
-</script>
+    // Student joins a class
+    document.getElementById("joinClassBtn").onclick = async () => {
+      const classCode = document.getElementById("classCode").value;
+      const q = query(collection(db, "classes"), where("name", "==", classCode));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        await addDoc(collection(db, "enrollments"), {
+          student: currentUser.uid,
+          class: snap.docs[0].id
+        });
+        alert("Joined class!");
+      } else {
+        alert("Class not found.");
+      }
+    };
+
+    // Teacher uploads assignment
+    document.getElementById("uploadAssignmentBtn").onclick = async () => {
+      const fileInput = document.getElementById("assignmentFile");
+      const file = fileInput.files[0];
+      if (!file) { alert("No file chosen"); return; }
+      const storageRef = ref(storage, "assignments/" + file.name);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+
+      await addDoc(collection(db, "assignments"), {
+        teacher: currentUser.uid,
+        file: url,
+        name: file.name
+      });
+      alert("Assignment uploaded!");
+    };
+
+    // Student submits response
+    document.getElementById("submitResponseBtn").onclick = async () => {
+      const text = document.getElementById("responseText").value;
+      await addDoc(collection(db, "responses"), {
+        student: currentUser.uid,
+        response: text
+      });
+      alert("Response submitted!");
+    };
+  </script>
+</head>
+<body>
+  <div id="login">
+    <h2>Login / Signup</h2>
+    <input id="email" placeholder="Email" />
+    <input id="password" type="password" placeholder="Password" />
+    <button id="signupBtn">Signup</button>
+    <button id="loginBtn">Login</button>
+    <button id="googleBtn">Login with Google</button>
+  </div>
+
+  <div id="roleSelect" style="display:none;">
+    <h2>Select Role</h2>
+    <label><input type="radio" name="role" value="teacher"/> Teacher</label>
+    <label><input type="radio" name="role" value="student"/> Student</label>
+    <button id="chooseRoleBtn">Continue</button>
+  </div>
+
+  <div id="dashboard" style="display:none;">
+    <button id="logoutBtn">Logout</button>
+
+    <div id="teacherUI" style="display:none;">
+      <h2>Teacher Dashboard</h2>
+      <input id="className" placeholder="New Class Name"/>
+      <button id="createClassBtn">Create Class</button>
+      <br/><br/>
+      <input id="assignmentFile" type="file"/>
+      <button id="uploadAssignmentBtn">Upload Assignment</button>
+    </div>
+
+    <div id="studentUI" style="display:none;">
+      <h2>Student Dashboard</h2>
+      <input id="classCode" placeholder="Class Name"/>
+      <button id="joinClassBtn">Join Class</button>
+      <br/><br/>
+      <textarea id="responseText" placeholder="Write your response"></textarea>
+      <button id="submitResponseBtn">Submit Response</button>
+    </div>
+  </div>
 </body>
 </html>
